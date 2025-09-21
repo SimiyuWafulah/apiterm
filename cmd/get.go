@@ -21,3 +21,7 @@ var getCmd = &cobra.Command{
         fmt.Println(string(body))
     },
 }
+
+func init() {
+    rootCmd.AddCommand(getCmd)
+}
