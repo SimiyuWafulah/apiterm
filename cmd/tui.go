@@ -8,7 +8,7 @@ import (
 )
 
 var tuiCmd = &cobra.Command{
-	Use:   "apiterm",
+	Use:   "ui",
 	Short: "Launch the interactive Terminal UI",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := tui.Run(); err != nil {
