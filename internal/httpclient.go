@@ -1,8 +1,9 @@
 package internal
 
 import (
-    "fmt"
-    "io/ioutil"
+    _"fmt"
+    "bytes"
+    "io"
     "net/http"
 )
 
@@ -14,7 +15,7 @@ func Get(url string) (int, []byte, error) {
     }
     defer resp.Body.Close()
 
-    body, err := ioutil.ReadAll(resp.Body)
+    body, err := io.ReadAll(resp.Body)
     if err != nil {
         return resp.StatusCode, nil, err
     }
@@ -30,7 +31,7 @@ func Post(url string, body []byte) (int, []byte, error) {
     }
     defer resp.Body.Close()
 
-    respBody, err := ioutil.ReadAll(resp.Body)
+    respBody, err := io.ReadAll(resp.Body)
     if err != nil {
         return resp.StatusCode, nil, err
     }
