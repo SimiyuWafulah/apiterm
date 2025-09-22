@@ -17,10 +17,15 @@ type Model struct {
 	bodyInput   textinput.Model
 	focusIndex  int
 	response    string
+	loading     bool
+
+	// terminal size for responsive layout / centering
+	width  int
+	height int
 }
 
-// InitialModel creates a new model with default values
-func InitialModel() Model {
+// NewModel creates a new model with default values
+func NewModel() Model {
 	m := Model{}
 
 	// URL input
@@ -29,17 +34,29 @@ func InitialModel() Model {
 	m.urlInput.Focus()
 	m.urlInput.CharLimit = 200
 	m.urlInput.Width = 60
+	m.urlInput.Prompt = " "
 
 	// Method input
 	m.methodInput = textinput.New()
 	m.methodInput.Placeholder = "GET"
 	m.methodInput.CharLimit = 10
 	m.methodInput.Width = 10
+	m.methodInput.Prompt = " "
 
 	// Body input
 	m.bodyInput = textinput.New()
-	m.bodyInput.Placeholder = `{"key": "value"}`
+	m.bodyInput.Placeholder = `{"key":"value"}`
 	m.bodyInput.Width = 60
+	m.bodyInput.CharLimit = 1000
+	m.bodyInput.Prompt = " "
+
+	// focus the first field
+	m.focusIndex = 0
+	m.urlInput.Focus()
+
+	// sensible defaults until we get a WindowSizeMsg
+	m.width = 80
+	m.height = 24
 
 	return m
 }
@@ -51,120 +68,162 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages and updates the model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "tab", "shift+tab", "enter", "up", "down":
-			// Handle focus switching
-			s := msg.String()
-			if s == "enter" && m.focusIndex == 2 {
-				// Last field - execute request
-				return m, m.executeRequest
+		case "tab", "down":
+			m.focusIndex = (m.focusIndex + 1) % 3
+		case "shift+tab", "up":
+			m.focusIndex = (m.focusIndex - 1 + 3) % 3
+		case "enter":
+			// if "enter" pressed on last field, send request
+			if m.focusIndex == 2 && !m.loading {
+				// run executeRequest as a command (executeRequest returns tea.Msg)
+				// use tea.Cmd(m.executeRequest) to convert the function to a Cmd
+				m.loading = true
+				return m, tea.Cmd(m.executeRequest)
 			}
-			if s == "enter" || s == "down" {
-				m.focusIndex++
-			} else {
-				m.focusIndex--
-			}
-			if m.focusIndex > 2 {
-				m.focusIndex = 0
-			} else if m.focusIndex < 0 {
-				m.focusIndex = 2
-			}
-
-			// Build commands but wrap Focus/Blur (which are func()) into tea.Cmd
-			cmds := make([]tea.Cmd, 3)
-
-			cmds[0] = tea.Cmd(func() tea.Msg {
-				m.urlInput.Blur()
-				return nil
-			})
-			cmds[1] = tea.Cmd(func() tea.Msg {
-				m.methodInput.Blur()
-				return nil
-			})
-			cmds[2] = tea.Cmd(func() tea.Msg {
-				m.bodyInput.Blur()
-				return nil
-			})
-
-			switch m.focusIndex {
-			case 0:
-				cmds[0] = tea.Cmd(func() tea.Msg {
-					m.urlInput.Focus()
-					return nil
-				})
-			case 1:
-				cmds[1] = tea.Cmd(func() tea.Msg {
-					m.methodInput.Focus()
-					return nil
-				})
-			case 2:
-				cmds[2] = tea.Cmd(func() tea.Msg {
-					m.bodyInput.Focus()
-					return nil
-				})
-			}
-			return m, tea.Batch(cmds...)
+			// otherwise move focus forward
+			m.focusIndex = (m.focusIndex + 1) % 3
 		}
+	case tea.WindowSizeMsg:
+		// update terminal dimensions so we can center header and size boxes
+		m.width = msg.Width
+		m.height = msg.Height
+	case string:
+		// response message from executeRequest
+		m.response = msg
+		m.loading = false
 	}
 
-	// Update the focused input field
-	var cmd tea.Cmd
+	// Ensure only the focused input is focused
 	switch m.focusIndex {
 	case 0:
-		m.urlInput, cmd = m.urlInput.Update(msg)
+		m.urlInput.Focus()
+		m.methodInput.Blur()
+		m.bodyInput.Blur()
 	case 1:
-		m.methodInput, cmd = m.methodInput.Update(msg)
+		m.urlInput.Blur()
+		m.methodInput.Focus()
+		m.bodyInput.Blur()
 	case 2:
-		m.bodyInput, cmd = m.bodyInput.Update(msg)
+		m.urlInput.Blur()
+		m.methodInput.Blur()
+		m.bodyInput.Focus()
 	}
-	return m, cmd
+
+	// Update the inputs and collect cmds
+	m.urlInput, cmd = m.urlInput.Update(msg)
+	cmds = append(cmds, cmd)
+	m.methodInput, cmd = m.methodInput.Update(msg)
+	cmds = append(cmds, cmd)
+	m.bodyInput, cmd = m.bodyInput.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
 }
 
-// View renders the UI
+// View renders the ui
 func (m Model) View() string {
 	var b strings.Builder
 
-	// Style for labels
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Width(12).Bold(true)
-
-	// Build the form
-	b.WriteString("APITERM - API Client\n\n")
-
-	b.WriteString(labelStyle.Render("URL") + ": ")
-	b.WriteString(m.urlInput.View())
-	b.WriteString("\n")
-
-	b.WriteString(labelStyle.Render("Method") + ": ")
-	b.WriteString(m.methodInput.View())
-	b.WriteString("\n")
-
-	b.WriteString(labelStyle.Render("Body") + ": ")
-	b.WriteString(m.bodyInput.View())
-	b.WriteString("\n\n")
-
-	// Shows response if we have one
-	if m.response != "" {
-		b.WriteString("Response:\n")
-		b.WriteString(m.response)
-		b.WriteString("\n")
+	
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = 80
 	}
 
-	// Help text
+	// Title styling (centered)
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Underline(true).
+		Foreground(lipgloss.Color("205")).
+		Width(termWidth).
+		Align(lipgloss.Center)
+
+	header := titleStyle.Render("APITERM - API Client")
+
+	// Label and cell styles
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Width(12).Bold(true)
+	cellStyle := lipgloss.NewStyle().PaddingLeft(1)
+
+	// Form box style - keep it slightly narrower than terminal so borders show
+	formBoxWidth := termWidth
+	if formBoxWidth > 4 {
+		formBoxWidth = formBoxWidth - 4
+	}
+	formStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		Padding(1).
+		Width(formBoxWidth)
+
+	// Build rows: label on left, input on right (tabular)
+	var rows []string
+
+	row := lipgloss.JoinHorizontal(lipgloss.Top,
+		labelStyle.Render("URL")+":",
+		cellStyle.Render(m.urlInput.View()),
+	)
+	rows = append(rows, row)
+
+	row = lipgloss.JoinHorizontal(lipgloss.Top,
+		labelStyle.Render("Method")+":",
+		cellStyle.Render(m.methodInput.View()),
+	)
+	rows = append(rows, row)
+
+	row = lipgloss.JoinHorizontal(lipgloss.Top,
+		labelStyle.Render("Body")+":",
+		cellStyle.Render(m.bodyInput.View()),
+	)
+	rows = append(rows, row)
+
+	form := strings.Join(rows, "\n\n")
+
+	// Response area styling
+	respStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Padding(1).
+		Width(formBoxWidth)
+
+	
+	helpStyle := lipgloss.NewStyle().Italic(true).PaddingTop(1)
+
+	
+	b.WriteString(header + "\n\n")
+	b.WriteString(formStyle.Render(form))
 	b.WriteString("\n\n")
-	b.WriteString("(tab/shift+tab to navigate, enter to send, q to quit)")
+
+	if m.response != "" {
+		b.WriteString(respStyle.Render("Response:\n" + m.response))
+	} else if m.loading {
+		b.WriteString(respStyle.Render("Response:\nLoading..."))
+	} else {
+		b.WriteString(respStyle.Render("Response: (no response yet)"))
+	}
+
+	b.WriteString("\n\n" + helpStyle.Render("(tab/shift+tab or up/down to navigate, enter to send on Body, q to quit)"))
 
 	return b.String()
 }
 
-// executeRequest runs the HTTP request
+// executeRequest runs the HTTP request 
 func (m Model) executeRequest() tea.Msg {
-	url := m.urlInput.Value()
-	method := strings.ToUpper(m.methodInput.Value())
+	url := strings.TrimSpace(m.urlInput.Value())
+	method := strings.ToUpper(strings.TrimSpace(m.methodInput.Value()))
 	body := m.bodyInput.Value()
+
+	if url == "" {
+		return "Error: URL is required"
+	}
+	if method == "" {
+		method = "GET"
+	}
 
 	var status int
 	var responseBody []byte
@@ -176,19 +235,20 @@ func (m Model) executeRequest() tea.Msg {
 	case "POST":
 		status, responseBody, err = internal.Post(url, []byte(body))
 	default:
-		return fmt.Sprintf("Error: Unsupported method %s", method)
+		return "Error: Unsupported method " + method
 	}
 
 	if err != nil {
-		return fmt.Sprintf("Error: %v", err)
+		return "Error: " + err.Error()
 	}
 
+	
 	return fmt.Sprintf("Status: %d\nBody: %s", status, string(responseBody))
 }
 
 // Run starts application
 func Run() error {
-	p := tea.NewProgram(InitialModel())
+	p := tea.NewProgram(NewModel(), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
