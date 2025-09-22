@@ -1,7 +1,7 @@
 package cmd
 
 import (
-    "bytes"
+    _"bytes"
     "fmt"
     "github.com/spf13/cobra"
     "github.com/SimiyuWafulah/apiterm/internal"
