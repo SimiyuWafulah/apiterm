@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/SimiyuWafulah/apiterm/internal"
-	"github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbletea/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -17,7 +17,6 @@ type Model struct {
 	bodyInput   textinput.Model
 	focusIndex  int
 	response    string
-	err         error
 }
 
 // InitialModel creates a new model with default values
@@ -74,17 +73,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if m.focusIndex < 0 {
 				m.focusIndex = 2
 			}
+
+			// Build commands but wrap Focus/Blur (which are func()) into tea.Cmd
 			cmds := make([]tea.Cmd, 3)
-			cmds[0] = m.urlInput.Blur
-			cmds[1] = m.methodInput.Blur
-			cmds[2] = m.bodyInput.Blur
+
+			cmds[0] = tea.Cmd(func() tea.Msg {
+				m.urlInput.Blur()
+				return nil
+			})
+			cmds[1] = tea.Cmd(func() tea.Msg {
+				m.methodInput.Blur()
+				return nil
+			})
+			cmds[2] = tea.Cmd(func() tea.Msg {
+				m.bodyInput.Blur()
+				return nil
+			})
+
 			switch m.focusIndex {
 			case 0:
-				cmds[0] = m.urlInput.Focus
+				cmds[0] = tea.Cmd(func() tea.Msg {
+					m.urlInput.Focus()
+					return nil
+				})
 			case 1:
-				cmds[1] = m.methodInput.Focus
+				cmds[1] = tea.Cmd(func() tea.Msg {
+					m.methodInput.Focus()
+					return nil
+				})
 			case 2:
-				cmds[2] = m.bodyInput.Focus
+				cmds[2] = tea.Cmd(func() tea.Msg {
+					m.bodyInput.Focus()
+					return nil
+				})
 			}
 			return m, tea.Batch(cmds...)
 		}
@@ -112,7 +133,7 @@ func (m Model) View() string {
 
 	// Build the form
 	b.WriteString("APITERM - API Client\n\n")
-	
+
 	b.WriteString(labelStyle.Render("URL") + ": ")
 	b.WriteString(m.urlInput.View())
 	b.WriteString("\n")
