@@ -25,14 +25,14 @@ type Model struct {
 }
 
 // NewModel creates a new model with default values
-func NewModel() Model {
-	m := Model{}
+func NewModel() *Model {
+	m := &Model{}
 
 	// URL input
 	m.urlInput = textinput.New()
 	m.urlInput.Placeholder = "https://apiterm.com/resource"
 	m.urlInput.Focus()
-	m.urlInput.CharLimit = 200
+	//m.urlInput.CharLimit = 200
 	m.urlInput.Width = 60
 	m.urlInput.Prompt = " "
 
@@ -47,7 +47,7 @@ func NewModel() Model {
 	m.bodyInput = textinput.New()
 	m.bodyInput.Placeholder = `{"key":"value"}`
 	m.bodyInput.Width = 60
-	m.bodyInput.CharLimit = 1000
+	//m.bodyInput.CharLimit = 1000
 	m.bodyInput.Prompt = " "
 
 	// focus the first field
@@ -62,12 +62,12 @@ func NewModel() Model {
 }
 
 // Init is called when the program starts
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
 // Update handles messages and updates the model
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
@@ -83,8 +83,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			// if "enter" pressed on last field, send request
 			if m.focusIndex == 2 && !m.loading {
-				// run executeRequest as a command (executeRequest returns tea.Msg)
-				// use tea.Cmd(m.executeRequest) to convert the function to a Cmd
 				m.loading = true
 				return m, tea.Cmd(m.executeRequest)
 			}
@@ -92,16 +90,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusIndex = (m.focusIndex + 1) % 3
 		}
 	case tea.WindowSizeMsg:
-		// update terminal dimensions so we can center header and size boxes
 		m.width = msg.Width
 		m.height = msg.Height
 	case string:
-		// response message from executeRequest
+		// response message
 		m.response = msg
 		m.loading = false
 	}
 
-	// Ensure only the focused input is focused
+	// Ensures only the focused input is focused
 	switch m.focusIndex {
 	case 0:
 		m.urlInput.Focus()
@@ -129,16 +126,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the ui
-func (m Model) View() string {
+func (m *Model) View() string {
 	var b strings.Builder
 
-	
 	termWidth := m.width
 	if termWidth <= 0 {
 		termWidth = 80
 	}
 
-	// Title styling (centered)
+	
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Underline(true).
@@ -152,7 +148,7 @@ func (m Model) View() string {
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Width(12).Bold(true)
 	cellStyle := lipgloss.NewStyle().PaddingLeft(1)
 
-	// Form box style - keep it slightly narrower than terminal so borders show
+	
 	formBoxWidth := termWidth
 	if formBoxWidth > 4 {
 		formBoxWidth = formBoxWidth - 4
@@ -162,7 +158,7 @@ func (m Model) View() string {
 		Padding(1).
 		Width(formBoxWidth)
 
-	// Build rows: label on left, input on right (tabular)
+	
 	var rows []string
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top,
@@ -192,9 +188,8 @@ func (m Model) View() string {
 		Width(formBoxWidth)
 
 	
-	helpStyle := lipgloss.NewStyle().Italic(true).PaddingTop(1)
+thelpStyle := lipgloss.NewStyle().Italic(true).PaddingTop(1)
 
-	
 	b.WriteString(header + "\n\n")
 	b.WriteString(formStyle.Render(form))
 	b.WriteString("\n\n")
@@ -207,13 +202,13 @@ func (m Model) View() string {
 		b.WriteString(respStyle.Render("Response: (no response yet)"))
 	}
 
-	b.WriteString("\n\n" + helpStyle.Render("(tab/shift+tab or up/down to navigate, enter to send on Body, q to quit)"))
+	b.WriteString("\n\n" + thelpStyle.Render("(tab/shift+tab or up/down to navigate, enter to send on Body, q to quit)"))
 
 	return b.String()
 }
 
 // executeRequest runs the HTTP request 
-func (m Model) executeRequest() tea.Msg {
+func (m *Model) executeRequest() tea.Msg {
 	url := strings.TrimSpace(m.urlInput.Value())
 	method := strings.ToUpper(strings.TrimSpace(m.methodInput.Value()))
 	body := m.bodyInput.Value()
@@ -242,7 +237,6 @@ func (m Model) executeRequest() tea.Msg {
 		return "Error: " + err.Error()
 	}
 
-	
 	return fmt.Sprintf("Status: %d\nBody: %s", status, string(responseBody))
 }
 
