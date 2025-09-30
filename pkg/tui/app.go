@@ -76,6 +76,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "n", "N": // NEW: Add new request functionality
+			if !m.loading {
+				m.resetForm()
+			}
 		case "tab", "down":
 			m.focusIndex = (m.focusIndex + 1) % 3
 		case "shift+tab", "up":
@@ -123,6 +127,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+// NEW: resetForm clears all fields for a new request
+func (m *Model) resetForm() {
+	m.urlInput.SetValue("")
+	m.methodInput.SetValue("")
+	m.bodyInput.SetValue("")
+	m.response = ""
+	m.focusIndex = 0
+	m.urlInput.Focus()
 }
 
 // View renders the ui
@@ -202,7 +216,8 @@ thelpStyle := lipgloss.NewStyle().Italic(true).PaddingTop(1)
 		b.WriteString(respStyle.Render("Response: (no response yet)"))
 	}
 
-	b.WriteString("\n\n" + thelpStyle.Render("(tab/shift+tab or up/down to navigate, enter to send on Body, q to quit)"))
+	// NEW: Updated help text to include 'n' for new request
+	b.WriteString("\n\n" + thelpStyle.Render("(n: new request, tab/shift+tab or up/down to navigate, enter to send on Body, q to quit)"))
 
 	return b.String()
 }
