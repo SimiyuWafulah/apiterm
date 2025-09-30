@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/SimiyuWafulah/apiterm/pkg/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -11,8 +12,11 @@ var rootCmd = &cobra.Command{
 	Use:   "apiterm",
 	Short: "A CLI tool to test APIs from the terminal",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Welcome to apiterm. Use 'get', 'post', or 'apiterm' commands.")
-		fmt.Println("Enter 'apiterm help' for available commands.")
+		fmt.Println("Launching APITERM TUI...")
+		if err := tui.Run(); err != nil {
+			fmt.Printf("Error launching TUI: %v\n", err)
+			os.Exit(1)
+		}
 	},
 }
 
