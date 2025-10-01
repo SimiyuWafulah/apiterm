@@ -76,14 +76,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "n", "N": // NEW: Add new request functionality
+		case "ctrl+n": 
 			if !m.loading {
 				m.resetForm()
+				return m, nil
 			}
 		case "tab", "down":
 			m.focusIndex = (m.focusIndex + 1) % 3
+			m.updateFocus()
+			return m, nil
 		case "shift+tab", "up":
 			m.focusIndex = (m.focusIndex - 1 + 3) % 3
+			m.updateFocus()
+			return m, nil
 		case "enter":
 			// if "enter" pressed on last field, send request
 			if m.focusIndex == 2 && !m.loading {
@@ -92,6 +97,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// otherwise move focus forward
 			m.focusIndex = (m.focusIndex + 1) % 3
+			m.updateFocus()
+			return m, nil
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -102,7 +109,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 	}
 
-	// Ensures only the focused input is focused
+	// Update the inputs and collect cmds
+	m.urlInput, cmd = m.urlInput.Update(msg)
+	cmds = append(cmds, cmd)
+	m.methodInput, cmd = m.methodInput.Update(msg)
+	cmds = append(cmds, cmd)
+	m.bodyInput, cmd = m.bodyInput.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+// updateFocus updates which input has focus based on focusIndex
+func (m *Model) updateFocus() {
 	switch m.focusIndex {
 	case 0:
 		m.urlInput.Focus()
@@ -117,16 +136,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.methodInput.Blur()
 		m.bodyInput.Focus()
 	}
-
-	// Update the inputs and collect cmds
-	m.urlInput, cmd = m.urlInput.Update(msg)
-	cmds = append(cmds, cmd)
-	m.methodInput, cmd = m.methodInput.Update(msg)
-	cmds = append(cmds, cmd)
-	m.bodyInput, cmd = m.bodyInput.Update(msg)
-	cmds = append(cmds, cmd)
-
-	return m, tea.Batch(cmds...)
 }
 
 // NEW: resetForm clears all fields for a new request
@@ -216,8 +225,8 @@ thelpStyle := lipgloss.NewStyle().Italic(true).PaddingTop(1)
 		b.WriteString(respStyle.Render("Response: (no response yet)"))
 	}
 
-	// NEW: Updated help text to include 'n' for new request
-	b.WriteString("\n\n" + thelpStyle.Render("(n: new request, tab/shift+tab or up/down to navigate, enter to send on Body, q to quit)"))
+	// Updated help text to include 'ctrl+n' for new request
+	b.WriteString("\n\n" + thelpStyle.Render("(ctrl+n: new request, tab/shift+tab or up/down to navigate, enter to send on Body, q to quit)"))
 
 	return b.String()
 }
